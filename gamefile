@@ -1,0 +1,130 @@
+#include <SFML/Graphics.hpp>
+#include <cmath>
+#include <cstdlib>
+#include <ctime>
+#include <string>
+
+const int WINDOW_WIDTH = 800;
+const int WINDOW_HEIGHT = 600;
+const float GRAVITY = 9.8f;
+const int WALL_WIDTH = 40;
+const float PROJECTILE_RADIUS = 5.0f;
+
+struct Projectile {
+    sf::CircleShape shape;
+    sf::Vector2f velocity;
+    bool active = false;
+    float time = 0.0f;
+};
+
+int main() {
+    sf::RenderWindow window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGHT), "Simplified Angry Bird");
+    window.setFramerateLimit(60);
+
+    srand(static_cast<unsigned>(time(0)));
+
+    // Wall with random height
+    float wallHeight = 200 + rand() % 200;
+    sf::RectangleShape wall(sf::Vector2f(WALL_WIDTH, wallHeight));
+    wall.setPosition(WINDOW_WIDTH / 2 - WALL_WIDTH / 2, WINDOW_HEIGHT - wallHeight);
+    wall.setFillColor(sf::Color::Blue);
+
+    // Enemy
+    sf::CircleShape enemy(20);
+    float enemyX = WINDOW_WIDTH / 2 + 100 + rand() % 200;
+    enemy.setPosition(enemyX, WINDOW_HEIGHT - 40);
+    enemy.setFillColor(sf::Color::Red);
+
+    // Projectile
+    Projectile projectile;
+    projectile.shape.setRadius(PROJECTILE_RADIUS);
+    projectile.shape.setOrigin(PROJECTILE_RADIUS, PROJECTILE_RADIUS);
+    projectile.shape.setFillColor(sf::Color::Green);
+
+    // Launcher position
+    sf::Vector2f launchPos(100, WINDOW_HEIGHT - 50);
+
+    // Input controls
+    float angle = 45.0f; // degrees
+    float force = 100.0f;
+
+    int score = 0;
+    int misses = 0;
+
+    sf::Font font;
+    font.loadFromFile("ARIAL.ttf");
+    sf::Text infoText;
+    infoText.setFont(font);
+    infoText.setCharacterSize(18);
+    infoText.setPosition(10, 10);
+    infoText.setFillColor(sf::Color::White);
+
+    while (window.isOpen()) {
+        sf::Event event;
+        while (window.pollEvent(event)) {
+            if (event.type == sf::Event::Closed)
+                window.close();
+        }
+
+        // Controls
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Up)) angle += 0.5f;
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Down)) angle -= 0.5f;
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Right)) force += 1.0f;
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Left)) force -= 1.0f;
+
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Space) && !projectile.active) {
+            projectile.active = true;
+            projectile.time = 0.0f;
+            projectile.shape.setPosition(launchPos);
+            float rad = angle * 3.14159f / 180.0f;
+            projectile.velocity = sf::Vector2f(std::cos(rad) * force, std::sin(rad) * -force);
+        }
+
+        // Update projectile
+        if (projectile.active) {
+            projectile.time += 0.016f;
+            sf::Vector2f pos = launchPos + sf::Vector2f(
+                                   projectile.velocity.x * projectile.time,
+                                   projectile.velocity.y * projectile.time + 0.5f * GRAVITY * projectile.time * projectile.time
+                                   );
+            projectile.shape.setPosition(pos);
+
+            // Collision check with enemy
+            if (projectile.shape.getGlobalBounds().intersects(enemy.getGlobalBounds())) {
+                score++;
+                projectile.active = false;
+                // Respawn enemy
+                float newX = WINDOW_WIDTH / 2 + 100 + rand() % 200;
+                enemy.setPosition(newX, WINDOW_HEIGHT - 40);
+            }
+            // Miss check
+            else if (pos.y > WINDOW_HEIGHT || pos.x > WINDOW_WIDTH) {
+                misses++;
+                projectile.active = false;
+            }
+            if (projectile.shape.getGlobalBounds().intersects(wall.getGlobalBounds())) {
+                misses++;
+                projectile.active = false;}
+        }
+
+        // Game Over
+        if (misses >= 3) {
+            infoText.setString("Game Over! Final Score: " + std::to_string(score));
+        } else {
+            infoText.setString("Angle: " + std::to_string((int)angle) +
+                               "  Force: " + std::to_string((int)force) +
+                               "  Score: " + std::to_string(score) +
+                               "  Misses: " + std::to_string(misses));
+        }
+
+        // Render
+        window.clear();
+        window.draw(wall);
+        window.draw(enemy);
+        window.draw(infoText);
+        if (projectile.active) window.draw(projectile.shape);
+        window.display();
+    }
+
+    return 0;
+}
